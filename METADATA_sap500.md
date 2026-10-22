@@ -31,40 +31,5 @@
 3. **Нулевые объемы (Zero-Volume Anomaly):** Подтверждено наличие записей с `Volume = 0.0` в начале ряда (1927-1928 гг.). Для моделирования волатильности (GARCH) это означает, что использовать `Volume` в качестве экзогенной переменной (GARCH-X) на полном историческом диапазоне **некорректно** без предварительной фильтрации или импутации.
 4. **Сортировка (Time-Series Integrity):** Вывод `head()` показывает возрастание дат (`1927-12-30` $\rightarrow$ `1928-01-06`). Однако для временных рядов критически важно подтвердить монотонность на всем датасете (отсутствие перемешанных строк).
 
-## 4. Обязательные шаги Pipeline (Data Prep) и проверки кодом
-
-Для перехода к Шагу 2 (Feature Engineering) необходимо выполнить и задокументировать следующие проверки:
-
-```python
-import pandas as pd
-
-# 1. Загрузка и приведение типов (Target Types)
-df = pd.read_csv("sap500.csv")
-df['Date'] = pd.to_datetime(df['Date'])
-
-# 2. Проверка монотонности времени (Критично для лагов и GARCH)
-is_sorted = df['Date'].is_monotonic_increasing
-assert is_sorted, "ОШИБКА: Данные не отсортированы по дате! Требуется df.sort_values('Date')."
-
-# 3. Проверка уникальности PK (Отсутствие дубликатов торговых дней)
-has_duplicates = df['Date'].duplicated().any()
-assert not has_duplicates, "ОШИБКА: Обнаружены дубликаты дат."
-
-# 4. Проверка бизнес-логики OHLC (Свечной анализ)
-# High не может быть меньше Low, Open или Close
-ohlc_violations = (df['High'] < df['Low']) | (df['High'] < df['Open']) | (df['High'] < df['Close'])
-assert ohlc_violations.sum() == 0, f"ОШИБКА: Нарушение логики OHLC в {ohlc_violations.sum()} строках."
-
-# Low не может быть больше High, Open или Close
-ohlc_violations_low = (df['Low'] > df['High']) | (df['Low'] > df['Open']) | (df['Low'] > df['Close'])
-assert ohlc_violations_low.sum() == 0, f"ОШИБКА: Нарушение логики OHLC (Low) в {ohlc_violations_low.sum()} строках."
-
-# 5. Анализ нулевых объемов (Для принятия решения по GARCH-X)
-zero_vol_count = (df['Volume'] == 0).sum()
-zero_vol_pct = (zero_vol_count / len(df)) * 100
-print(f"Доля нулевых объемов: {zero_vol_count} строк ({zero_vol_pct:.2f}%).")
-print(f"Последняя дата с нулевым объемом: {df[df['Volume'] == 0]['Date'].max()}")
-```
-
 ### Решение о пригодности (Go/No-Go)
 Датасет **пригоден** для базового анализа временных рядов и моделирования волатильности (GARCH на основе `Log_Return` от `Close`) при условии успешного прохождения ассертов в коде выше. Использование `Volume` в моделях должно быть ограничено периодом, где объем фактически фиксировался (после последней даты с `Volume == 0`).
